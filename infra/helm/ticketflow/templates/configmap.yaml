@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ticketflow-config
+data:
+  API_PORT: {{ .Values.api.port | quote }}
+  WORKER_PORT: {{ .Values.worker.port | quote }}
+  {{- range $k, $v := .Values.config }}
+  {{ $k }}: {{ $v | quote }}
+  {{- end }}

@@ -1,0 +1,30 @@
+# Node
+node_modules/
+npm-debug.log*
+dist/
+build/
+coverage/
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+*.local
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+*.tfvars
+!*.tfvars.example
+
+# Kubernetes / Helm
+*.kubeconfig
+infra/k8s/*secret*.yaml
+!infra/k8s/*secret*.example.yaml
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/

@@ -1,0 +1,30 @@
+name: CD
+
+on:
+  push:
+    branches: [main]
+
+# Squelette CD. Secrets requis : AZURE_CREDENTIALS, ACR_LOGIN_SERVER, AKS_RESOURCE_GROUP, AKS_NAME
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: false   # passer à true une fois les secrets Azure configurés
+    steps:
+      - uses: actions/checkout@v4
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+      - name: Build & push images vers ACR
+        run: |
+          az acr login --name "${{ secrets.ACR_LOGIN_SERVER }}"
+          for svc in api worker payment-gateway; do
+            docker build -t "${{ secrets.ACR_LOGIN_SERVER }}/ticketflow-$svc:${{ github.sha }}" "backend/$svc"
+            docker push "${{ secrets.ACR_LOGIN_SERVER }}/ticketflow-$svc:${{ github.sha }}"
+          done
+      - name: Déployer sur AKS via Helm
+        run: |
+          az aks get-credentials -g "${{ secrets.AKS_RESOURCE_GROUP }}" -n "${{ secrets.AKS_NAME }}"
+          helm upgrade --install ticketflow infra/helm/ticketflow -n ticketflow --create-namespace \
+            --set image.registry="${{ secrets.ACR_LOGIN_SERVER }}" \
+            --set image.tag="${{ github.sha }}"

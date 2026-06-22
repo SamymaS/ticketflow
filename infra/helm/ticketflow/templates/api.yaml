@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  labels: { app: api }
+spec:
+  replicas: {{ .Values.api.replicas }}
+  selector:
+    matchLabels: { app: api }
+  template:
+    metadata:
+      labels: { app: api }
+    spec:
+      containers:
+        - name: api
+          image: {{ include "ticketflow.image" (dict "root" . "name" "ticketflow-api") }}
+          ports:
+            - containerPort: {{ .Values.api.port }}
+          envFrom:
+            - configMapRef: { name: ticketflow-config }
+            - secretRef: { name: {{ .Values.existingSecret }} }
+          resources: {{- toYaml .Values.api.resources | nindent 12 }}
+          livenessProbe:
+            httpGet: { path: /healthz, port: {{ .Values.api.port }} }
+          readinessProbe:
+            httpGet: { path: /readyz, port: {{ .Values.api.port }} }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api
+spec:
+  selector: { app: api }
+  ports:
+    - port: 80
+      targetPort: {{ .Values.api.port }}

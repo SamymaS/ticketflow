@@ -1,0 +1,42 @@
+image:
+  registry: REGISTRY            # ex: ticketflowacr.azurecr.io (injecté par la CI)
+  tag: latest
+
+api:
+  replicas: 3
+  port: 4000
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits:   { cpu: 500m, memory: 256Mi }
+
+worker:
+  replicas: 2
+  port: 4100
+
+paymentGateway:
+  replicas: 1
+  port: 4200
+  failureRate: "0"
+  latencyMs: "50"
+
+config:
+  LOG_LEVEL: info
+  HOLD_TTL_SECONDS: "600"
+  WORKER_CONCURRENCY: "5"
+  PGHOST: postgres
+  PGPORT: "5432"
+  PGDATABASE: ticketflow
+  PGUSER: ticketflow
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
+  PAYMENT_URL: http://payment-gateway:4200
+  S3_ENDPOINT: http://minio:9000
+  S3_PUBLIC_URL: http://minio:9000
+  S3_BUCKET: tickets
+  S3_REGION: us-east-1
+
+existingSecret: ticketflow-secret
+
+ingress:
+  enabled: true
+  host: ticketflow.local

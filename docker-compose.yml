@@ -1,0 +1,88 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${PGDATABASE:-ticketflow}
+      POSTGRES_USER: ${PGUSER:-ticketflow}
+      POSTGRES_PASSWORD: ${PGPASSWORD:-ticketflow_dev_pw}
+    ports: ["5432:5432"]
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PGUSER:-ticketflow}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-minioadmin}
+    ports: ["9000:9000", "9001:9001"]
+    volumes: ["miniodata:/data"]
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  payment-gateway:
+    build: ./backend/payment-gateway
+    environment:
+      PORT: 4200
+      FAILURE_RATE: ${PAYMENT_FAILURE_RATE:-0}
+      LATENCY_MS: ${PAYMENT_LATENCY_MS:-50}
+    ports: ["4200:4200"]
+
+  api:
+    build: ./backend/api
+    environment:
+      API_PORT: 4000
+      PGHOST: postgres
+      PGDATABASE: ${PGDATABASE:-ticketflow}
+      PGUSER: ${PGUSER:-ticketflow}
+      PGPASSWORD: ${PGPASSWORD:-ticketflow_dev_pw}
+      REDIS_HOST: redis
+      JWT_SECRET: ${JWT_SECRET:-change_me_in_prod}
+      PAYMENT_URL: http://payment-gateway:4200
+      HOLD_TTL_SECONDS: ${HOLD_TTL_SECONDS:-600}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports: ["4000:4000"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      payment-gateway: { condition: service_started }
+
+  worker:
+    build: ./backend/worker
+    environment:
+      WORKER_PORT: 4100
+      PGHOST: postgres
+      PGDATABASE: ${PGDATABASE:-ticketflow}
+      PGUSER: ${PGUSER:-ticketflow}
+      PGPASSWORD: ${PGPASSWORD:-ticketflow_dev_pw}
+      REDIS_HOST: redis
+      S3_ENDPOINT: http://minio:9000
+      S3_PUBLIC_URL: http://localhost:9000
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-minioadmin}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-minioadmin}
+      S3_BUCKET: tickets
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      minio: { condition: service_healthy }
+
+volumes:
+  pgdata:
+  miniodata:

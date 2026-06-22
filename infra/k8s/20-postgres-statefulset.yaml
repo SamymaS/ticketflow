@@ -1,0 +1,58 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: ticketflow
+spec:
+  clusterIP: None          # headless : identité réseau stable pour le StatefulSet
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: ticketflow
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              valueFrom: { configMapKeyRef: { name: ticketflow-config, key: PGDATABASE } }
+            - name: POSTGRES_USER
+              valueFrom: { configMapKeyRef: { name: ticketflow-config, key: PGUSER } }
+            - name: POSTGRES_PASSWORD
+              valueFrom: { secretKeyRef: { name: ticketflow-secret, key: PGPASSWORD } }
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec: { command: ["pg_isready", "-U", "ticketflow"] }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi

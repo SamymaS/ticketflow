@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  namespace: ticketflow
+  labels: { app: worker }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: worker }
+  template:
+    metadata:
+      labels: { app: worker }
+    spec:
+      containers:
+        - name: worker
+          image: REGISTRY/ticketflow-worker:latest
+          ports:
+            - containerPort: 4100
+          envFrom:
+            - configMapRef: { name: ticketflow-config }
+            - secretRef: { name: ticketflow-secret }
+          resources:
+            requests: { cpu: "50m", memory: "128Mi" }
+            limits:   { cpu: "500m", memory: "256Mi" }
+          livenessProbe:
+            httpGet: { path: /healthz, port: 4100 }
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet: { path: /readyz, port: 4100 }
+            initialDelaySeconds: 5
+            periodSeconds: 10

@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-gateway
+  labels: { app: payment-gateway }
+spec:
+  replicas: {{ .Values.paymentGateway.replicas }}
+  selector:
+    matchLabels: { app: payment-gateway }
+  template:
+    metadata:
+      labels: { app: payment-gateway }
+    spec:
+      containers:
+        - name: payment-gateway
+          image: {{ include "ticketflow.image" (dict "root" . "name" "ticketflow-payment-gateway") }}
+          ports:
+            - containerPort: {{ .Values.paymentGateway.port }}
+          env:
+            - name: PORT
+              value: {{ .Values.paymentGateway.port | quote }}
+            - name: FAILURE_RATE
+              value: {{ .Values.paymentGateway.failureRate | quote }}
+            - name: LATENCY_MS
+              value: {{ .Values.paymentGateway.latencyMs | quote }}
+          livenessProbe:
+            httpGet: { path: /healthz, port: {{ .Values.paymentGateway.port }} }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: payment-gateway
+spec:
+  selector: { app: payment-gateway }
+  ports:
+    - port: {{ .Values.paymentGateway.port }}
+      targetPort: {{ .Values.paymentGateway.port }}

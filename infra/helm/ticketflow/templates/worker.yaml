@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  labels: { app: worker }
+spec:
+  replicas: {{ .Values.worker.replicas }}
+  selector:
+    matchLabels: { app: worker }
+  template:
+    metadata:
+      labels: { app: worker }
+    spec:
+      containers:
+        - name: worker
+          image: {{ include "ticketflow.image" (dict "root" . "name" "ticketflow-worker") }}
+          ports:
+            - containerPort: {{ .Values.worker.port }}
+          envFrom:
+            - configMapRef: { name: ticketflow-config }
+            - secretRef: { name: {{ .Values.existingSecret }} }
+          livenessProbe:
+            httpGet: { path: /healthz, port: {{ .Values.worker.port }} }
+          readinessProbe:
+            httpGet: { path: /readyz, port: {{ .Values.worker.port }} }

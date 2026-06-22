@@ -1,0 +1,3 @@
+prefix   = "ticketflow"
+location = "francecentral"
+# pg_admin_password à fournir via la variable d'environnement TF_VAR_pg_admin_password

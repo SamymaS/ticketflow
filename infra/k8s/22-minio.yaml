@@ -1,0 +1,36 @@
+# MinIO en cluster pour minikube. En cloud : Azure Blob (provisionné par Terraform) à la place.
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio
+  namespace: ticketflow
+spec:
+  selector: { app: minio }
+  ports:
+    - port: 9000
+      targetPort: 9000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minio
+  namespace: ticketflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: minio }
+  template:
+    metadata:
+      labels: { app: minio }
+    spec:
+      containers:
+        - name: minio
+          image: minio/minio:latest
+          args: ["server", "/data"]
+          env:
+            - name: MINIO_ROOT_USER
+              valueFrom: { secretKeyRef: { name: ticketflow-secret, key: S3_ACCESS_KEY } }
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom: { secretKeyRef: { name: ticketflow-secret, key: S3_SECRET_KEY } }
+          ports:
+            - containerPort: 9000
