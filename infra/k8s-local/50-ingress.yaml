@@ -1,0 +1,20 @@
+# Ingress via Traefik (installé par Helm). Route le trafic externe vers l'API.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ticketflow
+  namespace: ticketflow
+  annotations:
+    kubernetes.io/ingress.class: traefik
+spec:
+  rules:
+    - host: ticketflow.local            # minikube : ajouter dans /etc/hosts ; en AKS : DNS/IP publique
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: api
+                port: { number: 80 }
+
