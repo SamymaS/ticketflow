@@ -22,11 +22,16 @@ resource "azurerm_kubernetes_cluster" "aks" {
   resource_group_name = azurerm_resource_group.rg.name
   location            = "polandcentral"
   dns_prefix          = var.prefix
+  oidc_issuer_enabled = true
 
   default_node_pool {
     name       = "default"
     node_count = 1
     vm_size    = "Standard_B2s_v2"
+
+    upgrade_settings {
+      max_surge = "10%"
+    }
   }
 
   identity {
