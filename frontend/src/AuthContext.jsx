@@ -4,8 +4,15 @@ const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
-    const raw = localStorage.getItem('tf_user')
-    return raw ? JSON.parse(raw) : null
+    const raw   = localStorage.getItem('tf_user')
+    const token = localStorage.getItem('tf_token')
+    // Les deux doivent être présents — si le token manque, on part d'un état vierge
+    if (!raw || !token) {
+      localStorage.removeItem('tf_user')
+      localStorage.removeItem('tf_token')
+      return null
+    }
+    return JSON.parse(raw)
   })
 
   function saveAuth(userData, token) {
