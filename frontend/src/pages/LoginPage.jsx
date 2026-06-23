@@ -23,7 +23,11 @@ export default function LoginPage() {
       saveAuth(user, token)
       navigate('/events')
     } catch (err) {
-      setError(err.message || 'Identifiants invalides')
+      if (err.status === 401) {
+        setError('Identifiants incorrects. Vérifiez votre email et mot de passe.')
+      } else {
+        setError('Une erreur est survenue. Veuillez réessayer.')
+      }
     } finally {
       setLoading(false)
     }

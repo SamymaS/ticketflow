@@ -89,11 +89,18 @@ reservations.get('/mine', requireAuth, async (req, res, next) => {
   try {
     const { rows } = await pool.query(
       `SELECT r.id, r.status, r.total_cents, r.created_at, e.title AS event_title,
-              COALESCE(json_agg(json_build_object('seatId', t.seat_id, 'pdfUrl', t.pdf_url))
-                       FILTER (WHERE t.id IS NOT NULL), '[]') AS tickets
+              COALESCE(json_agg(json_build_object(
+                'seatId',   t.seat_id,
+                'pdfUrl',   t.pdf_url,
+                'qrCode',   t.qr_code,
+                'section',  s.section,
+                'rowLabel', s.row_label,
+                'number',   s.number
+              )) FILTER (WHERE t.id IS NOT NULL), '[]') AS tickets
        FROM reservations r
        JOIN events e ON e.id = r.event_id
        LEFT JOIN tickets t ON t.reservation_id = r.id
+       LEFT JOIN seats s ON s.id = t.seat_id
        WHERE r.user_id = $1
        GROUP BY r.id, e.title ORDER BY r.created_at DESC`,
       [req.userId]

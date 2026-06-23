@@ -638,6 +638,81 @@ a:hover { text-decoration: underline; }
   font-style: italic;
 }
 
+.ticket-seat {
+  font-size: 0.9rem;
+}
+
+.ticket-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* ============================================================
+   MODAL QR CODE
+   ============================================================ */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+
+.modal-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 2rem 2rem 1.5rem;
+  max-width: 340px;
+  width: 90%;
+  text-align: center;
+  position: relative;
+}
+
+.modal-close {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.85rem;
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: 1.6rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.modal-close:hover { color: var(--color-text); }
+
+.modal-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+}
+
+.modal-seat {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  margin-bottom: 1.25rem;
+}
+
+.modal-qr {
+  width: 100%;
+  max-width: 260px;
+  border-radius: var(--radius-sm);
+  display: block;
+  margin: 0 auto;
+}
+
+.modal-hint {
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  margin-top: 1rem;
+}
+
 /* ============================================================
    RESPONSIVE
    ============================================================ */

@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, CreateBucketCommand, HeadBucketCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, CreateBucketCommand, HeadBucketCommand, PutBucketPolicyCommand } from '@aws-sdk/client-s3';
 import { config } from './config.js';
 import { logger } from './logger.js';
 
@@ -16,6 +16,18 @@ export async function ensureBucket() {
     await s3.send(new CreateBucketCommand({ Bucket: config.s3.bucket }));
     logger.info({ bucket: config.s3.bucket }, 'bucket créé');
   }
+
+  // Politique de lecture publique (idempotent) — requis pour que les URLs de PDF soient accessibles
+  const policy = JSON.stringify({
+    Version: '2012-10-17',
+    Statement: [{
+      Effect: 'Allow',
+      Principal: { AWS: ['*'] },
+      Action: ['s3:GetObject'],
+      Resource: [`arn:aws:s3:::${config.s3.bucket}/*`],
+    }],
+  });
+  await s3.send(new PutBucketPolicyCommand({ Bucket: config.s3.bucket, Policy: policy }));
 }
 
 export async function putObject(keyName, body, contentType) {
