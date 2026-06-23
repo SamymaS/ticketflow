@@ -16,6 +16,13 @@ async function request(path, options = {}) {
   const data = await res.json().catch(() => ({}))
 
   if (!res.ok) {
+    // Token présent mais refusé par le serveur → session expirée, on déconnecte
+    if (res.status === 401 && token) {
+      localStorage.removeItem('tf_token')
+      localStorage.removeItem('tf_user')
+      window.location.replace('/login')
+      return null
+    }
     const err = new Error(data.message || `HTTP ${res.status}`)
     err.status = res.status
     err.data = data
