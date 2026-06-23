@@ -1,4 +1,4 @@
-import { Link, useNavigate } from 'react-router-dom'
+import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../AuthContext'
 
 export default function Navbar() {
@@ -10,16 +10,18 @@ export default function Navbar() {
     navigate('/login')
   }
 
+  const linkClass = ({ isActive }) => `nav-link${isActive ? ' active' : ''}`
+
   return (
     <nav className="navbar">
-      <Link to="/events" className="navbar-brand">
+      <NavLink to="/events" className="navbar-brand">
         🎟 TicketFlow
-      </Link>
+      </NavLink>
       <div className="navbar-links">
         {user ? (
           <>
-            <Link to="/events" className="nav-link">Événements</Link>
-            <Link to="/tickets" className="nav-link">Mes billets</Link>
+            <NavLink to="/events" className={linkClass}>Événements</NavLink>
+            <NavLink to="/tickets" className={linkClass}>Mes billets</NavLink>
             <span className="nav-user">{user.name || user.email}</span>
             <button className="btn btn-ghost" onClick={handleLogout}>
               Déconnexion
@@ -27,8 +29,8 @@ export default function Navbar() {
           </>
         ) : (
           <>
-            <Link to="/login" className="nav-link">Connexion</Link>
-            <Link to="/register" className="btn btn-primary btn-small">S'inscrire</Link>
+            <NavLink to="/login" className={linkClass}>Connexion</NavLink>
+            <NavLink to="/register" className="btn btn-primary btn-small">S'inscrire</NavLink>
           </>
         )}
       </div>

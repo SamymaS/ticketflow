@@ -68,7 +68,6 @@ export default function EventDetailPage() {
     } catch (err) {
       if (err.status === 409) {
         setHoldError('Un ou plusieurs sièges viennent d\'être pris. Veuillez en choisir d\'autres.')
-        // refresh seats
         getEvent(id).then((data) => {
           setSeats(data.seats)
           setSelected([])
@@ -82,24 +81,32 @@ export default function EventDetailPage() {
   }
 
   if (loading) return <div className="page-loader">Chargement de l'événement…</div>
-  if (error) return <div className="page-error">Erreur : {error}</div>
+  if (error)   return <div className="page-error">Erreur : {error}</div>
 
   return (
     <div className="page">
       <div className="event-detail-header">
-        {event.image_url && (
+        {event.image_url ? (
           <img
             src={event.image_url}
             alt={event.title}
             className="event-detail-img"
             onError={(e) => { e.target.style.display = 'none' }}
           />
+        ) : (
+          <div className="event-detail-banner">🎵</div>
         )}
-        <div>
+        <div className="event-detail-body">
           <h1 className="page-title">{event.title}</h1>
-          <p className="event-venue">{event.venue}</p>
-          <p className="event-date">{formatDate(event.starts_at)}</p>
-          {event.description && <p className="event-desc">{event.description}</p>}
+          <div className="event-detail-meta">
+            <span className="event-meta-item">📍 {event.venue}</span>
+            <span className="event-meta-item">📅 {formatDate(event.starts_at)}</span>
+          </div>
+          {event.description && (
+            <p className="event-desc" style={{ marginTop: '1rem', fontSize: '0.9rem' }}>
+              {event.description}
+            </p>
+          )}
         </div>
       </div>
 
@@ -130,7 +137,7 @@ export default function EventDetailPage() {
       )}
 
       {holdError && selected.length === 0 && (
-        <p className="error-msg" style={{ textAlign: 'center' }}>{holdError}</p>
+        <p className="error-msg" style={{ textAlign: 'center', marginTop: '1rem' }}>{holdError}</p>
       )}
     </div>
   )

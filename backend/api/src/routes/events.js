@@ -8,7 +8,15 @@ export const events = Router();
 events.get('/', requireAuth, async (_req, res, next) => {
   try {
     const { rows } = await pool.query(
-      `SELECT id, title, description, venue, starts_at, image_url FROM events ORDER BY starts_at`
+      `SELECT e.id, e.title, e.description, e.venue, e.starts_at, e.image_url,
+              MIN(s.price_cents) AS min_price_cents,
+              MAX(s.price_cents) AS max_price_cents,
+              COUNT(s.id) FILTER (WHERE s.status = 'available') AS available_seats,
+              COUNT(s.id) AS total_seats
+       FROM events e
+       LEFT JOIN seats s ON s.event_id = e.id
+       GROUP BY e.id
+       ORDER BY e.starts_at`
     );
     res.json({ events: rows });
   } catch (err) { next(err); }

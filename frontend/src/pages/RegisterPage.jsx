@@ -32,7 +32,9 @@ export default function RegisterPage() {
   return (
     <div className="auth-container">
       <div className="auth-card">
+        <div className="auth-logo">🎟</div>
         <h1 className="auth-title">Créer un compte</h1>
+        <p className="auth-subtitle">Rejoignez TicketFlow et réservez vos événements</p>
         <form onSubmit={handleSubmit} className="auth-form">
           <label>
             Nom
