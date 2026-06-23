@@ -36,7 +36,9 @@ export default function LoginPage() {
   return (
     <div className="auth-container">
       <div className="auth-card">
+        <div className="auth-logo">🎟</div>
         <h1 className="auth-title">Connexion</h1>
+        <p className="auth-subtitle">Accédez à vos billets et réservations</p>
         <form onSubmit={handleSubmit} className="auth-form">
           <label>
             Email
