@@ -8,6 +8,7 @@ import { migrate } from './db.js';
 import { health } from './health.js';
 import { users } from './routes/users.js';
 import { events } from './routes/events.js';
+import { tickets } from './routes/tickets.js';
 import { reservations } from './routes/reservations.js';
 
 const app = express();
@@ -20,6 +21,7 @@ app.use(health);
 app.use('/api/users', users);
 app.use('/api/events', events);
 app.use('/api/reservations', reservations);
+app.use('/api/tickets', tickets);
 
 app.use((err, _req, res, _next) => {
   logger.error({ err }, 'erreur non gérée');

@@ -90,7 +90,7 @@ export default function MyTicketsPage() {
                         {ticket.pdfUrl ? (
                           <div className="ticket-actions">
                             <a
-                              href={ticket.pdfUrl}
+                              href={`/api/tickets/${res.id}/${ticket.seatId}/pdf`}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="btn btn-small btn-secondary"
@@ -99,7 +99,7 @@ export default function MyTicketsPage() {
                             </a>
                             <button
                               className="btn btn-small btn-primary"
-                              onClick={() => setActiveQr({ qrCode: ticket.qrCode, label: seatLabel(ticket) })}
+                              onClick={() => setActiveQr({ qrCode: `${window.location.origin}/api/tickets/${res.id}/${ticket.seatId}/verify`, label: seatLabel(ticket) })}
                             >
                               Voir QR code
                             </button>
