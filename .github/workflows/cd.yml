@@ -1,30 +1,55 @@
-name: CD
+﻿name: CD
 
 on:
   push:
     branches: [main]
+  workflow_dispatch: {}
 
-# Squelette CD. Secrets requis : AZURE_CREDENTIALS, ACR_LOGIN_SERVER, AKS_RESOURCE_GROUP, AKS_NAME
+env:
+  NAMESPACE: ticketflow
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    if: false   # passer à true une fois les secrets Azure configurés
     steps:
       - uses: actions/checkout@v4
+
       - name: Azure login
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
-      - name: Build & push images vers ACR
+
+      - name: Build & push des images vers l'ACR
         run: |
           az acr login --name "${{ secrets.ACR_LOGIN_SERVER }}"
+          SHA="${{ github.sha }}"
           for svc in api worker payment-gateway; do
-            docker build -t "${{ secrets.ACR_LOGIN_SERVER }}/ticketflow-$svc:${{ github.sha }}" "backend/$svc"
-            docker push "${{ secrets.ACR_LOGIN_SERVER }}/ticketflow-$svc:${{ github.sha }}"
+            img="${{ secrets.ACR_LOGIN_SERVER }}/ticketflow-$svc"
+            docker build -t "$img:$SHA" -t "$img:latest" "backend/$svc"
+            docker push "$img:$SHA"
+            docker push "$img:latest"
           done
-      - name: Déployer sur AKS via Helm
+          img="${{ secrets.ACR_LOGIN_SERVER }}/ticketflow-frontend"
+          docker build -t "$img:$SHA" -t "$img:latest" frontend
+          docker push "$img:$SHA"
+          docker push "$img:latest"
+
+      - name: Connexion au cluster AKS
+        uses: azure/aks-set-context@v4
+        with:
+          resource-group: ${{ secrets.AKS_RESOURCE_GROUP }}
+          cluster-name: ${{ secrets.AKS_NAME }}
+
+      - name: Deploiement sur l'AKS
         run: |
-          az aks get-credentials -g "${{ secrets.AKS_RESOURCE_GROUP }}" -n "${{ secrets.AKS_NAME }}"
-          helm upgrade --install ticketflow infra/helm/ticketflow -n ticketflow --create-namespace \
-            --set image.registry="${{ secrets.ACR_LOGIN_SERVER }}" \
-            --set image.tag="${{ github.sha }}"
+          SHA="${{ github.sha }}"
+          REG="${{ secrets.ACR_LOGIN_SERVER }}"
+          kubectl apply -f infra/k8s-aks/ticketflow.yaml
+          kubectl set image deployment/api             api=$REG/ticketflow-api:$SHA                         -n $NAMESPACE
+          kubectl set image deployment/worker          worker=$REG/ticketflow-worker:$SHA                   -n $NAMESPACE
+          kubectl set image deployment/payment-gateway payment-gateway=$REG/ticketflow-payment-gateway:$SHA -n $NAMESPACE
+          kubectl set image deployment/frontend        frontend=$REG/ticketflow-frontend:$SHA               -n $NAMESPACE
+          kubectl rollout status deployment/api             -n $NAMESPACE --timeout=180s
+          kubectl rollout status deployment/worker          -n $NAMESPACE --timeout=180s
+          kubectl rollout status deployment/payment-gateway -n $NAMESPACE --timeout=120s
+          kubectl rollout status deployment/frontend        -n $NAMESPACE --timeout=120s
