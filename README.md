@@ -1,80 +1,145 @@
 # TicketFlow
 
-Plateforme de **billetterie avec réservation de sièges**, conçue pour démontrer une architecture
-cloud-native sur un cas d'usage réel : verrou de siège concurrent, paiement résilient, génération
-asynchrone des billets. Projet M2 (binôme).
+Plateforme de billetterie **cloud-native** avec réservation de sièges, paiement et génération de billets (QR + PDF). Projet M2 démontrant les patterns d'architecture distribuée : microservices, broker de messages, circuit breaker, contrôle de concurrence, stockage objet, et déploiement Kubernetes sur Azure via Terraform et CI/CD.
+
+🌐 **Application en ligne : http://20.215.94.75**
+
+---
+
+## Sommaire
+- [Architecture](#architecture)
+- [Choix technologiques](#choix-technologiques)
+- [Concepts cloud-native → où c'est implémenté](#concepts-cloud-native--où-cest-implémenté)
+- [Démarrage rapide (local)](#démarrage-rapide-local)
+- [Déploiement cloud & CI/CD](#déploiement-cloud--cicd)
+- [Choix d'architecture assumés](#choix-darchitecture-assumés)
+
+---
 
 ## Architecture
 
 ```mermaid
-flowchart LR
-  U[Navigateur] --> T[Traefik Ingress]
-  T --> F[Frontend React]
-  T --> A[API x3 - stateless]
-  A -->|verrou siege SET NX EX| R[(Redis - locks + broker + cache)]
-  A -->|SQL| P[(PostgreSQL StatefulSet)]
-  A -->|charge - circuit breaker| G[payment-gateway externe]
-  A -->|publie reservation.paid| R
-  R -->|consomme + ack| W[Worker BullMQ]
-  W -->|billet PDF + QR| S[(Stockage objet - MinIO/Blob)]
-  W -->|enregistre billets| P
+flowchart TB
+    user([Utilisateur])
+
+    subgraph cloud["Azure AKS (Kubernetes)"]
+        traefik["Traefik (Ingress / LoadBalancer)"]
+        frontend["frontend - React + nginx"]
+        api["api - Express, stateless, JWT"]
+        pay["payment-gateway (mock)"]
+        worker["worker - BullMQ consumer"]
+        redis[("Redis - verrous + broker + cache")]
+        pg[("PostgreSQL - StatefulSet + PVC")]
+        minio[("MinIO / Blob - stockage objet")]
+    end
+
+    user -->|HTTP| traefik
+    traefik -->|"/"| frontend
+    traefik -->|"/api"| api
+
+    api -->|"verrou siege SET NX EX"| redis
+    api -->|"SQL"| pg
+    api -->|"checkout: circuit breaker + timeout"| pay
+    api -->|"publish reservation.paid"| redis
+    redis -->|"job"| worker
+    worker -->|"QR + PDF"| minio
+    worker -->|"INSERT ticket"| pg
+    api -->|"proxy PDF / verify"| minio
 ```
 
-Réserver un siège pose un **verrou Redis à expiration** (`SET NX EX`). Au checkout, l'API appelle la
-**passerelle de paiement** derrière un **circuit breaker** ; en cas de succès elle publie
-`reservation.paid`. Le **worker** génère alors le billet (QR + PDF) et le dépose dans le stockage objet,
-de façon asynchrone et idempotente.
+**Flux principal** : l'utilisateur réserve des sièges (verrou Redis temporaire) → checkout → l'API appelle le `payment-gateway` via un **circuit breaker** → en cas de succès, publie `reservation.paid` → le **worker** génère le QR + PDF et l'envoie dans le stockage objet → l'API sert le PDF et la page de vérification du QR.
 
-## Stack
+---
 
-| Couche | Choix |
+## Choix technologiques
+
+| Domaine | Choix | Pourquoi |
+|---|---|---|
+| API | **Node.js / Express** | Léger, asynchrone, écosystème mature ; idéal pour un service stateless. |
+| Auth | **JWT + bcrypt** | Authentification stateless (aucune session serveur) → scalabilité horizontale. |
+| Broker | **BullMQ (Redis)** | Retries, backoff et dead-letter intégrés ; pas d'infra supplémentaire (réutilise Redis). |
+| Circuit breaker | **opossum** | Standard Node pour timeout + fallback autour des appels externes. |
+| Concurrence | **Redis `SET NX EX`** | Verrou atomique avec TTL → empêche la double réservation d'un siège. |
+| Stockage objet | **MinIO (local) / Azure Blob** | Compatible S3 ; PDF servis via l'API (stockage privé, jamais exposé). |
+| Base de données | **PostgreSQL** | Modèle relationnel adapté (événements, sièges, réservations, billets). |
+| Orchestration | **Kubernetes (AKS)** | Démontre StatefulSet, Ingress, probes, HA — plus complet qu'un PaaS. |
+| IaC | **Terraform** | Provisioning reproductible et idempotent de l'infra Azure. |
+| Ingress | **Traefik (Helm)** | Routage `/api` et `/` + LoadBalancer → URL publique. |
+| CI/CD | **GitHub Actions** | Build/test + déploiement continu sur push `main`. |
+
+---
+
+## Concepts cloud-native → où c'est implémenté
+
+| Concept | Fichier(s) |
 |---|---|
-| Frontend | React, React Router |
-| API | Node.js / Express, JWT (stateless) |
-| Worker | Node.js / BullMQ |
-| Paiement | service `payment-gateway` (mock, faillible à la demande) |
-| Base de données | PostgreSQL (StatefulSet + PVC) |
-| Locks / broker / cache | Redis (`SET NX EX`, BullMQ) |
-| Stockage objet | MinIO (local) / Azure Blob (cloud) |
-| Orchestration | Kubernetes (minikube local, AKS cloud) |
-| Ingress | Traefik (Helm) |
-| IaC | Terraform (Azure) |
-| CI/CD | GitHub Actions |
+| API stateless + JWT | `backend/api/src/auth.js` |
+| Microservices | `backend/api`, `backend/worker`, `backend/payment-gateway` |
+| Circuit breaker + timeout + fallback | `backend/api/src/payment.js`, `routes/reservations.js` |
+| Broker de messages avec acquittement | `backend/api/src/queue.js`, `backend/worker/src/index.js` |
+| Retries + dead-letter | `backend/worker` (config BullMQ `attempts`, `backoff`, `removeOnFail`) |
+| Contrôle de concurrence (Redis) | `backend/api/src/holds.js` (`SET NX EX`) |
+| Worker idempotent | `backend/worker/src/handlers/reservationPaid.js` + `UNIQUE(reservation_id, seat_id)` |
+| StatefulSet + volume persistant | `infra/k8s-aks/ticketflow.yaml` (Postgres) |
+| Stockage objet | `backend/worker/src/storage.js`, `backend/api/src/routes/tickets.js` |
+| Observabilité / résilience | `/healthz` + `/readyz`, logs `pino`, arrêt gracieux (SIGTERM), probes K8s |
+| Haute disponibilité | Réplicas, readiness/liveness probes, redémarrage automatique |
+
+---
 
 ## Démarrage rapide (local)
 
-```bash
-cp .env.example .env
-docker compose up --build
-```
-
-Services : api `:4000`, payment-gateway `:4200`, MinIO `:9000` (console `:9001`), Postgres `:5432`, Redis `:6379`.
-L'API applique les migrations + seed un événement de démo au démarrage.
+**Prérequis** : Docker Desktop, Node.js 20+, Git.
 
 ```bash
-curl localhost:4000/healthz
+git clone https://github.com/SamymaS/ticketflow.git
+cd ticketflow
+docker compose up --build        # postgres, redis, minio, payment-gateway, api, worker, adminer
 ```
 
-### Démontrer le circuit breaker
-
-Relancer la passerelle en mode « en panne » puis tenter un paiement :
-
+Frontend (second terminal) :
 ```bash
-PAYMENT_FAILURE_RATE=1 docker compose up -d payment-gateway
-# après quelques tentatives, le circuit s'ouvre -> l'API répond 503 (degraded) sans planter
+cd frontend
+npm install
+npm run dev                      # http://localhost:5173
 ```
 
-## Documentation
+| Service | URL |
+|---|---|
+| Frontend | http://localhost:5173 |
+| API | http://localhost:4000 |
+| Adminer (DB) | http://localhost:8080 |
+| Console MinIO | http://localhost:9001 |
 
-- `docs/architecture.md` — schéma + patterns
-- `docs/api-contract.md` — contrat d'API (référence frontend)
-- `docs/adr/` — décisions techniques
-- `infra/` — Kubernetes, Helm, Terraform
+Identifiants de dev : PostgreSQL `ticketflow` / `ticketflow_dev_pw` · MinIO `minioadmin` / `minioadmin`.
 
-## Roadmap (48h)
+> Guide complet (cloud, dépannage) : [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 
-- [ ] Cœur métier : événements, hold de sièges, checkout + paiement, billets async
-- [ ] Containerisation + `docker compose`
-- [ ] Déploiement minikube (StatefulSet, Helm, Traefik, HPA, probes)
-- [ ] Terraform -> AKS + CI/CD + URL publique
-- [ ] Résilience, observabilité, README final, répétition démo
+---
+
+## Déploiement cloud & CI/CD
+
+- **Infra** provisionnée par Terraform (`infra/terraform/`) : Resource Group, ACR, **AKS**, rôle AcrPull, Storage Account, Key Vault.
+- **Déploiement applicatif** : `infra/k8s-aks/ticketflow.yaml` (StatefulSet Postgres, Redis, MinIO, api, worker, payment-gateway, frontend, Ingress Traefik).
+- **CI** (`.github/workflows/ci.yml`) : build des services + `terraform validate`.
+- **CD** (`.github/workflows/cd.yml`) : sur push `main` → build/push des 4 images vers l'ACR + déploiement AKS (`kubectl set image` lié au commit).
+
+Détails et commandes pas-à-pas dans [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
+
+---
+
+## Choix d'architecture assumés
+
+Trois décisions volontaires, défendues plutôt que subies :
+
+1. **AKS plutôt qu'Azure Container Apps.** Le sujet citait ACA en exemple ; nous avons choisi un vrai cluster Kubernetes pour démontrer **StatefulSet, Ingress, probes et HA** — une maîtrise plus complète des concepts.
+2. **PostgreSQL en StatefulSet dans le cluster** (pas de base managée) : illustre concrètement le pattern StatefulSet + volume persistant, et simplifie l'infra.
+3. **Stockage objet servi via l'API.** Le bucket reste **privé** : les PDF transitent par une route API (`/api/tickets/.../pdf`) plutôt que par une URL de stockage exposée — meilleure posture de sécurité.
+
+---
+
+## Équipe
+Samy (backend / infra / CI-CD) · Fayrouz (frontend) · Melvin (documentation / oral).
+
+## Licence
+MIT
