@@ -1,6 +1,6 @@
 # frontend
 
-Application React (à construire par Fayrouz) consommant l'API TicketFlow.
+Application React consommant l'API TicketFlow.
 
 ## Pages MVP
 1. **Auth** — register / login (stocke le token JWT).
